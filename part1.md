@@ -364,7 +364,7 @@ table ip filter {
 
 如果要在给定位置添加规则，则必须使用句柄作为参考：
 
-```
+```bash
 % nft -n -a list table filter
 table filter {
         chain output {
@@ -378,7 +378,7 @@ table filter {
 
 如果要在处理程序编号为 8 的规则之前插入规则，则必须键入：
 
-```
+```bash
 % nft insert rule filter output position 8 ip daddr 127.0.0.8 drop
 ```
 
@@ -388,7 +388,7 @@ table filter {
 
 > 我还在上面纠结句柄是哪来的...emmm
 
-```
+```bash
 % nft -a list table filter
 table ip filter {
         chain input {
@@ -413,7 +413,7 @@ table ip filter {
 
 注意：有计划通过以下命令来支持规则删除：
 
-```
+```bash
 % nft delete rule filter output ip saddr 192.168.1.1 counter
 ```
 
@@ -423,7 +423,7 @@ table ip filter {
 
 您可以使用以下命令删除链中的所有规则：
 
-```
+```bash
 % nft flush chain filter output
 # 单独删除output的相关规则
 ```
@@ -432,7 +432,7 @@ table ip filter {
 
 您还可以使用以下命令删除表中的所有规则：
 
-```
+```bash
 % nft flush table filter
 # 删除filter的所有规则
 ```
@@ -441,7 +441,7 @@ table ip filter {
 
 要通过 insert 命令在新规则前面附加，请执行以下操作：
 
-```
+```bash
 % nft insert rule filter output ip daddr 192.168.1.1 counter
 ```
 
@@ -456,7 +456,7 @@ table ip filter {
 
 您可以通过 replace 命令通过指示规则句柄来替换任何规则，您必须首先使用选项 -a 列出规则集来找到该句柄：
 
-```
+```bash
 # nft -a list ruleset
 table ip filter {
         chain input {
@@ -469,7 +469,7 @@ table ip filter {
 
 若要将规则替换为句柄 2，请指定其句柄编号和要替换它的新规则：
 
-```
+```bash
 nft replace rule filter input handle 2 counter
 ```
 
@@ -477,7 +477,7 @@ nft replace rule filter input handle 2 counter
 
 结果查看：列出上述替换后的规则集：
 
-```
+```bash
 # nft list ruleset
 table ip filter {
         chain input {
@@ -489,3 +489,570 @@ table ip filter {
 
 >`counter packets 0 bytes 0`：这是一个规则，它会对所有匹配的包进行计数。在这个例子中，因为没有定义匹配条件，所以这个规则会匹配所有的包。`packets 0 bytes 0`表示到目前为止，这个规则匹配到的包的数量和总字节数都是0。
 
+### 原子规则替换
+
+**关于什么是原子规则替换集？**
+
+>nftables的原子规则替换是一种特性，它允许你在不影响数据流的情况下更改规则集。这是通过在内部使用事务来实现的，这意味着规则集的更改要么全部应用，要么全部不应用，没有中间状态。这对于需要在生产环境中更改规则集的情况非常有用，因为它可以**最小化由于规则更改而导致的服务中断**。 
+>
+>​                                       划重点：防止规则的更新导致服务中断
+>
+>在nftables中，你可以使用`nft -f`命令来原子性地加载规则集。例如，你可以将你的规则集写入一个文件，然后使用`nft -f`命令来加载它：
+
+您可以使用 -f 选项以原子方式更新规则集：
+
+```bash
+% nft -f file
+```
+
+>这段bash代码的作用是通过使用 `nftables` 的命令行工具 `nft` 来加载或运行一个规则集文件。
+>
+>- `nft` 是 `nftables` 包中的主要命令行工具，用于操作和管理 `nftables` 规则。`nftables` 是Linux内核中用于配置防火墙的一个框架，它替代了之前的 `iptables`。
+>- `-f` 参数告诉 `nft` 从指定的文件中读取并执行包含的 `nftables` 规则。这个文件（在这个命令中用 `file` 表示）应该包含一组 `nftables` 语法格式的规则。
+>- `file` 是包含 `nftables` 规则的文件的路径。这个文件中的规则定义了网络包的处理方式，例如允许或拒绝特定类型的网络流量。
+>
+>总结来说，这段代码的作用是使用 `nft` 命令行工具来加载并应用 `file` 文件中定义的 `nftables` 防火墙规则。这可以用于配置服务器或网络设备的防火墙设置，以控制进出网络流量的规则。
+
+您可以通过将现有列表存储在文件中来保存您的规则集，即。
+
+```bash
+% nft list table filter > filter-table
+```
+
+然后，您可以使用 -f 选项加载它：
+
+```bash
+% nft -f filter-table
+```
+
+## 错误警示信息
+
+以下示例显示了将 IPv4 地址作为 TCP 端口传递时的错误输出。
+
+```bash
+% nft add rule filter input tcp dport 1.1.1.1 counter drop
+<cmdline>:1:33-39: Error: Could not resolve service: Servname not supported for ai_socktype
+add rule filter input tcp dport 1.1.1.1 counter drop
+```
+
+正确应该是这样的：
+```bash
+    nft add rule filter input ip saddr 1.1.1.1 tcp dport 80 counter drop
+#改为ip规则 这条命令会丢弃所有来自1.1.1.1且目标TCP端口为80的数据包。 saddr是来源ip地址
+nft add rule filter input tcp dport 80 counter accept
+#改为tcp加端口 这条命令会接受所有目标TCP端口为80的数据包。
+```
+
+如果命令不完整，则典型输出如下：
+
+```bash
+% nft add rule filter input tcp dport
+<cmdline>:1:32-32: Error: syntax error, unexpected end of file
+add rule filter input tcp dport
+```
+
+## 通过表达式构建规则
+
+- 等于 ==
+- 不等于 !=
+- 小于 <
+- 大于 >
+- 小于等于 <=
+- 大于等于 >=
+
+> 和基本编程常识没啥太大差异
+
+示例：下示例演示如何匹配所有未进入端口 TCP/22 的传入流量。
+
+```bash
+nft add rule filter input tcp dport != 22
+```
+
+Similarly, you can also match traffic coming to high ports with the following command:
+同样，您还可以使用以下命令匹配进入大于等于1024端口的流量：
+
+```bash
+nft add rule filter input tcp dport >= 1024
+```
+
+## 规则集级别的操作
+
+### 常规操作
+
+列出完整的规则集：
+
+```bash
+ % nft list ruleset
+```
+
+列出每个系列的规则集：
+
+```bash
+ % nft list ruleset arp
+ % nft list ruleset ip
+ % nft list ruleset ip6
+ % nft list ruleset bridge
+ % nft list ruleset inet
+```
+
+此外，您还可以刷新（擦除、删除、擦除）整个规则集：
+
+```bash
+ % nft flush ruleset
+```
+
+Also per family: 也每个系列：
+
+```bash
+ % nft flush ruleset arp
+ % nft flush ruleset ip
+ % nft flush ruleset ip6
+ % nft flush ruleset bridge
+ % nft flush ruleset inet
+```
+
+您可以结合上述两个命令来备份规则集：
+
+```bash
+ % echo "flush ruleset" > backup.nft
+ % nft list ruleset >> backup.nft
+```
+
+并以原子方式加载它：
+
+```bash
+ % nft -f backup.nft
+```
+
+### 以 JSON 格式列出
+
+您还可以以 JSON 格式导出规则集，只需传递“--json”选项：
+
+```bash
+ % nft --json list ruleset > ruleset.json
+ #列出所有规则集插入到ruleset.json中
+```
+
+解释如下：
+>这个命令是用来列出并导出当前nftables防火墙的所有规则集的。
+>
+>`nft --json list ruleset`这部分的命令会列出当前的所有规则集。`--json`选项表示以JSON格式输出结果，这使得输出的结果更易于被其他工具和脚本处理。
+>
+>`> ruleset.json`这部分是将上述命令的输出重定向到一个名为`ruleset.json`的文件。如果这个文件已经存在，它会被覆盖；如果不存在，它会被创建。
+>
+>所以，整个命令的作用是将当前的所有nftables规则集以JSON格式导出到一个名为`ruleset.json`的文件中。
+>
+>在这个命令中，`list`是nftables命令的一部分，它用于列出特定的对象。在这个例子中，它用于列出当前的所有规则集（`ruleset`）。
+
+## ---分割线---
+
+> 下面内容可能稍微有点难了，一时半会可能看不懂：建议需要实践的时候仔细研究。 PS:其实我也不懂啦（暂时）
+
+## 监视规则集更新
+
+NFT 可以通过以下方式显示规则集更新通知：
+
+```bash
+ % nft monitor
+```
+
+可以按以下类型筛选出事件：
+
+- 对象：表、链、规则、集合和元素。
+- 事件：新建和销毁。
+
+输出格式可以是：
+
+- plain text (ie. native nft format)
+  纯文本（即原生 NFT 格式）
+- xml
+- json JSON
+
+以下示例演示如何仅跟踪规则更新的跟踪：
+
+```bash
+ % nft monitor rules
+```
+
+如果您只想接收新规则：
+
+```bash
+ % nft monitor new rules
+```
+
+## 脚本
+
+要创建 nftables 脚本，您必须将以下标头添加到脚本文件中：
+
+```bash
+#!/usr/sbin/nft -f
+```
+
+您可以使用“#”字符向文件添加注释。“#”后面的所有内容都将被忽略。
+
+```bash
+#!/usr/sbin/nft -f
+
+#
+# table declaration
+#
+add table filter
+
+#
+# chain declaration
+#
+add chain filter input { type filter hook input priority 0; policy drop; }
+
+#
+# rule declaration
+#
+add rule filter input ct state established,related counter accept
+```
+
+注意：以点 （.） 开头的文件与 include 语句不匹配。
+
+>如果一个文件的名称以点（.）开头，那么它不会被`include`指令匹配。这是一个Unix和Linux系统中的约定，以点（.）开头的文件通常被视为隐藏文件。
+
+```bash
+#!/usr/sbin/nft -f
+
+# include a single file using the default search path
+include "ipv4-nat.ruleset"
+
+# include all files ending in *.nft in the default search path
+include "*.nft"
+
+# include all files in a given directory using an absolute path
+include "/etc/nftables/*"
+```
+
+您可以使用 define 关键字来定义变量，以下示例显示了一个非常简单的规则集，用于计算来自 8.8.8.8（流行的 Google DNS 服务器）的流量：
+
+```bash
+#!/usr/sbin/nft -f
+
+define google_dns = 8.8.8.8
+
+add table filter
+add chain filter input { type filter hook input priority 0; }
+add rule filter input ip saddr $google_dns counter
+```
+
+您还可以为集合定义变量：
+
+```bash
+#!/usr/sbin/nft -f
+
+define ntp_servers = { 84.77.40.132, 176.31.53.99, 81.19.96.148, 138.100.62.8 }
+
+add table filter
+add chain filter input { type filter hook input priority 0; }
+add rule filter input ip saddr $ntp_servers counter
+```
+
+不要忘记，括号在规则中使用时具有特殊的语义，因为它们表示此变量表示一个集合。因此，请避免以下情况：
+
+```bash
+define google_dns = { 8.8.8.8 }
+```
+
+定义一个只存储一个元素的集合，而是使用单例定义，这简直是矫枉过正：
+
+```bash
+define google_dns = 8.8.8.8
+```
+
+nftables 输出格式示例：
+
+```bash
+#!/usr/sbin/nft -f
+
+define ntp_servers = { 84.77.40.132, 176.31.53.99, 81.19.96.148, 138.100.62.8 }
+
+#flush table nat
+table ip nat {
+	chain prerouting {
+		type filter hook prerouting priority 0; policy accept;
+                ip saddr $ntp_servers counter
+                # 来自各个ip的包的计数处理
+	}
+
+	chain postrouting {
+		type filter hook postrouting priority 100; policy accept;
+	}
+}
+```
+
+脚本化配置格式示例：
+
+```bash
+#!/usr/sbin/nft -f
+
+define ntp_servers = { 84.77.40.132, 176.31.53.99, 81.19.96.148, 138.100.62.8 }
+
+add table filter  #创建表
+add chain filter input { type filter hook input priority 0; }  #创建链
+add rule filter input ip saddr $ntp_servers counter  #创建计数规则
+```
+
+>第一段代码在`nat`表的`prerouting`和`postrouting`链中定义了规则。`prerouting`链中的规则会在路由决策之前应用，而`postrouting`链中的规则会在路由决策之后应用。这段代码中，`prerouting`链中的规则会对源地址为`ntp_servers`定义的IP地址的数据包进行计数。
+>
+>第二段代码在`filter`表的`input`链中定义了规则。`input`链中的规则会在数据包被路由到本地套接字之前应用。这段代码中，`input`链中的规则会对源地址为`ntp_servers`定义的IP地址的数据包进行计数。
+>
+>所以，这两段代码的主要区别在于它们处理数据包的位置和方式。第一段代码在数据包路由决策之前和之后处理数据包，而第二段代码在数据包被路由到本地套接字之前处理数据包。
+
+## 规则集调试/跟踪
+
+### 启用nftrace
+
+要在数据包中启用 nftrace，请使用带有以下语句的规则：
+
+```bash
+meta nftrace set 1
+```
+
+>当你在一个规则中使用`meta nftrace set 1`，那么匹配到这个规则的所有数据包都会被标记为"trace"，然后这些数据包的处理过程会被记录到内核日志中。
+>
+>例如，假设你有以下的nftables规则：
+>
+>```bash
+>table filter {
+>  chain input {
+>    type filter hook input priority 0; policy drop;
+>    ip protocol icmp meta nftrace set 1
+>    ip protocol icmp counter accept
+>  }
+>}
+>```
+>
+>这个规则会匹配所有的ICMP数据包，然后启用Netfilter的跟踪功能，并接受这些数据包。你可以通过查看内核日志来查看这些数据包的处理过程。
+>
+>你可以使用`dmesg`命令或者查看`/var/log/kern.log`文件来查看内核日志。你应该能够看到类似以下的输出：
+>
+>```bash
+>[ 1234.567890] TRACE: filter:input:policy:2 IN=eth0 OUT= MAC=00:0c:29:6d:34:1a:00:0c:29:bb:52:5b:08:00 SRC=192.168.1.1 DST=192.168.1.2 LEN=84 TOS=0x00 PREC=0x00 TTL=64 ID=0 DF PROTO=ICMP TYPE=8 CODE=0 ID=2672 SEQ=1 
+>```
+>
+>这个输出表示一个从192.168.1.1发送到192.168.1.2的ICMP数据包被`filter:input`链处理了。
+
+当然，您只能为给定的匹配数据包启用 nftrace。在下面的示例中，我们只为 tcp 数据包启用 nftrace：
+
+```bash
+ip protocol tcp meta nftrace set 1
+```
+
+### 使用链启用跟踪
+
+注册trace_chain以启用跟踪。如果您已经有一个预路由链，请确保您的trace_chain优先级位于现有的预路由链之前。
+
+```bash
+% nft add chain filter trace_chain { type filter hook prerouting priority -301\; }
+% nft add rule filter trace_chain meta nftrace set 1
+```
+
+完成规则跟踪后，只需删除此链即可禁用它：
+
+```bash
+% nft delete chain filter trace_chain
+```
+
+### 监视跟踪事件
+
+基本语法为：
+
+```bash
+% nft monitor trace
+```
+
+### 完整示例
+
+假设您有此规则集：
+
+```bash
+table ip filter {
+        chain input {
+                type filter hook input priority filter; policy drop;
+                ct state established,related counter packets 2 bytes 292 accept
+                ct state new tcp dport 22 counter packets 0 bytes 0 accept
+        }
+}
+```
+
+>这个规则集定义了一个名为`filter`的表，以及一个名为`input`的链。这个链的类型是`filter`，它的钩子是`input`，优先级是`filter`，默认策略是`drop`。
+>
+>在这个链中，有两个规则：
+>
+>1. `ct state established,related counter packets 2 bytes 292 accept`：这个规则匹配所有已经建立的连接或者与已经建立的连接相关的数据包，然后接受这些数据包。这个规则还会对匹配到的数据包进行计数，目前已经匹配到2个数据包，总共292字节。
+>2. `ct state new tcp dport 22 counter packets 0 bytes 0 accept`：这个规则匹配所有新的连接，并且目标TCP端口是22（通常是SSH服务）的数据包，然后接受这些数据包。这个规则也会对匹配到的数据包进行计数，但目前还没有匹配到任何数据包。
+>
+>所以，这个规则集的作用是接受所有已经建立的连接或者与已经建立的连接相关的数据包，以及所有新的连接并且目标TCP端口是22的数据包。所有其他的数据包都会被丢弃（因为默认策略是`drop`）。
+
+加载规则集：
+
+```bash
+% nft -f ruleset.nft
+```
+
+然后，添加一个启用跟踪的链：
+
+```bash
+% nft add chain ip filter trace_chain { type filter hook prerouting priority -1\; }
+```
+
+以及启用跟踪的规则：
+
+```bash
+% nft add rule ip filter trace_chain meta nftrace set 1
+```
+
+简单的跟踪测试，通过ping一个主机：
+
+```bash
+% ping -c 1 8.8.8.8
+```
+
+您在不同的终端上运行：
+
+```bash
+% nft monitor trace
+trace id a95ea7ef ip filter trace_chain packet: iif "enp0s25" ether saddr 00:0d:b9:4a:49:3d ether daddr 3c:97:0e:39:aa:20 ip saddr 8.8.8.8 ip daddr 192.168.2.118 ip dscp cs0 ip ecn not-ect ip ttl 115 ip id 0 ip length 84 icmp type echo-reply icmp code net-unreachable icmp id 9253 icmp sequence 1 @th,64,96 24106705117628271805883024640 
+trace id a95ea7ef ip filter trace_chain rule meta nftrace set 1 (verdict continue)
+trace id a95ea7ef ip filter trace_chain verdict continue 
+trace id a95ea7ef ip filter trace_chain policy accept 
+trace id a95ea7ef ip filter input packet: iif "enp0s25" ether saddr 00:0d:b9:4a:49:3d ether daddr 3c:97:0e:39:aa:20 ip saddr 8.8.8.8 ip daddr 192.168.2.118 ip dscp cs0 ip ecn not-ect ip ttl 115 ip id 0 ip length 84 icmp type echo-reply icmp code net-unreachable icmp id 9253 icmp sequence 1 @th,64,96 24106705117628271805883024640 
+trace id a95ea7ef ip filter input rule ct state established,related counter packets 168 bytes 53513 accept (verdict accept)
+```
+
+跟踪 ID 唯一标识数据包。跟踪描述最初进入链的数据包。
+
+```bash
+trace id a95ea7ef ip filter trace_chain packet: iif "enp0s25" ether saddr 00:0d:b9:4a:49:3d ether daddr 3c:97:0e:39:aa:20 ip saddr 8.8.8.8 ip daddr 192.168.2.118 ip dscp cs0 ip ecn not-ect ip ttl 115 ip id 0 ip length 84 icmp type echo-reply icmp code net-unreachable icmp id 9253 icmp sequence 1 @th,64,96 24106705117628271805883024640
+```
+
+## 输出文本修饰符
+
+通常可以通过使用 nft --help 或阅读手册页 nft（8） 来检查所有输出修饰符。
+
+```bash
+  -n, numeric                   Print fully numerical output.
+  -s, stateless                 Omit stateful information of ruleset.
+  -N, reversedns                Translate IP addresses to names.
+  -S, service                   Translate ports to service names as described in /etc/services.
+  -a, handle                    Output rule handle.
+  -j, json                      Format output in JSON
+  -u, guid                      Print UID/GID as defined in /etc/passwd and /etc/group.
+  -y, numeric-priority          Print chain priority numerically.
+  -p, numeric-protocol          Print layer 4 protocols numerically.
+  -T, numeric-time              Print time values numerically.
+  -t, terse                     Omit contents of sets.
+```
+
+默认输出以数字形式打印一些信息，对于已知名称，它将使用字符串（如 icmp 类型、conntrack 状态、链优先级等）。此外，还会打印计数器值和集合元素等状态信息。
+
+```bash
+% nft list ruleset
+table inet filter {
+	set s {
+		type inet_service
+		elements = { 80, 443 }
+	}
+
+	chain input {
+		type filter hook input priority filter; policy accept;
+		counter packets 4447 bytes 1619415
+		iif "lo" counter packets 337 bytes 25076 accept
+		ct state established,related counter packets 44899 bytes 106405802 accept
+		ip6 nexthdr ipv6-icmp icmpv6 type { nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } counter packets 1 bytes 72 accept
+		tcp dport 22 drop
+		ip saddr 8.8.8.8 drop
+	}
+}
+```
+
+### 操作和解析修饰符
+
+​	可以显示不带有状态信息（例如，不带计数器值）、带句柄且不带设置内容的规则集：
+
+```bash
+% nft -sta list ruleset
+table inet filter { # handle 5
+	set s { # handle 9
+		type inet_service
+	}
+
+	chain input { # handle 1
+		type filter hook input priority filter; policy accept;
+		iif "lo" counter accept # handle 3
+		ct state established,related counter accept # handle 4
+		ip6 nexthdr ipv6-icmp icmpv6 type { nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } counter accept # handle 5
+		ip saddr 8.8.8.8 counter # handle 8
+		tcp dport 22 accept # handle 10
+	}
+}
+```
+
+特别要提到规则集的 JSON 表示形式。JSON 将以单行方式打印。在这里，我们使用 perl 的 json_pp 实用程序格式化 JSON：
+
+```bash
+% nft -j list ruleset | json_pp
+{
+   "nftables" : [
+      {
+         "metainfo" : {
+            "json_schema_version" : 1,
+            "release_name" : "Capital Idea #2",
+            "version" : "0.9.6"
+         }
+      },
+      {
+         "table" : {
+            "family" : "inet",
+            "handle" : 5,
+            "name" : "filter"
+         }
+      },
+      {
+         "set" : {
+            "elem" : [
+               80,
+               443
+            ],
+            "family" : "inet",
+            "handle" : 9,
+            "name" : "s",
+            "table" : "filter",
+            "type" : "inet_service"
+         }
+      },
+      {
+         "chain" : {
+            "family" : "inet",
+            "handle" : 1,
+            "hook" : "input",
+            "name" : "input",
+            "policy" : "accept",
+            "prio" : 0,
+            "table" : "filter",
+            "type" : "filter"
+         }
+      },
+      {
+         "rule" : {
+            "chain" : "input",
+            "expr" : [
+               {
+                  "counter" : {
+                     "bytes" : 37707381,
+                     "packets" : 8062
+                  }
+               }
+            ],
+            "family" : "inet",
+            "handle" : 7,
+            "table" : "filter"
+         }
+      },
+[..]
+```
+
+> 基本操作就到这里啦：就是带着把官方文档过了一遍啦~，然后加了部分答疑，希望你能喜欢，感谢你的支持~
