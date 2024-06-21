@@ -10,6 +10,37 @@ nftables 通过一个统一的框架提供了对**各种协议**的支持，包�
 
 # nftables的基本操作
 
+> 最常见指令见汇总：如果需要继续学习请往下继续学习~
+
+## 最常用的 nftables 命令汇总：
+
+- 查看规则集：
+  - `sudo nft list ruleset`
+
+- 添加规则：
+  - `sudo nft add rule <table> <chain> <rule>`
+
+- 删除规则：
+  - `sudo nft delete rule <table> <chain> <rule>`
+
+- 查看规则统计信息：
+  - `sudo nft list ruleset -a`
+
+- 查看表信息：
+  - `sudo nft list table <table>`
+
+- 查看链信息：
+  - `sudo nft list chain <table> <chain>`
+
+- 清空规则集：
+  - `sudo nft flush ruleset`
+
+- 加载配置文件：
+  - `sudo nft -f /path/to/config/file`
+
+- 保存当前规则集到配置文件：
+  - `sudo nft list ruleset > /path/to/config/file`
+
 ## nft的基本指令
 
 ### 表操作
@@ -1056,3 +1087,9 @@ table inet filter { # handle 5
 ```
 
 > 基本操作就到这里啦：就是带着把官方文档过了一遍啦~，然后加了部分答疑，希望你能喜欢，感谢你的支持~
+
+> 官方英文文档：
+> https://wiki.nftables.org/wiki-nftables/index.php/Main_Page
+>
+> 友链：
+> https://farkasity.gitbooks.io/nftables-howto-zh/content/index.html
